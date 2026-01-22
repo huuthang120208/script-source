@@ -254,6 +254,58 @@ gay = (function()
         Water:Destroy()
     end        
 end)()
+
+getgenv().GetBladeHits = function()
+    local targets = {}
+    local function GetDistance(v)
+        return (v.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+    end
+    for _, v in pairs(game:GetService("Workspace").Enemies:GetChildren()) do
+        if v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Head") and v:FindFirstChild("Humanoid") then
+            if GetDistance(v.HumanoidRootPart.CFrame) < 60 then
+                table.insert(targets, v)
+            end
+        end
+    end
+    return targets
+end
+
+getgenv().AttackAll = function()
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    
+    if not character then return end
+    
+    local equippedWeapon = character:FindFirstChild("EquippedWeapon")
+    if not equippedWeapon then return end
+    
+    local weaponData = require(game.ReplicatedStorage.Modules.CombatUtil):GetWeaponData(equippedWeapon:GetAttribute("WeaponName"))
+    if not weaponData or weaponData.WeaponType ~= "Melee" then return end
+    
+    local enemies = GetBladeHits()
+    if #enemies > 0 then
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local netModule = replicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
+        
+        netModule:WaitForChild("RE/RegisterAttack"):FireServer(-math.huge)
+        
+        local args = {nil, {}}
+        for i, v in pairs(enemies) do
+            if not args[1] then
+                args[1] = v.Head
+            end
+            args[2][i] = {
+                [1] = v,
+                [2] = v.HumanoidRootPart
+            }
+        end
+        
+        netModule:WaitForChild("RE/RegisterHit"):FireServer(unpack(args))
+        netModule:WaitForChild("RE/RegisterAttack"):FireServer(-math.huge)
+    end
+end
+
+
 local Attack = {}
 Attack.__index = Attack
 Attack.Alive = function(model)
@@ -5170,6 +5222,7 @@ spawn(function()
                                                 repeat
                                                     task.wait()
                                                     Attack.Kill(v, _G.AutoSaber)
+                                                    AttackAll()
                                                 until v.Humanoid.Health <= 0 or _G.AutoSaber == false
                                             end
                                         end
@@ -5189,6 +5242,7 @@ spawn(function()
                                 repeat
                                     task.wait()
                                     Attack.Kill(v, _G.AutoSaber)
+                                    AttackAll()
                                 until v.Humanoid.Health <= 0 or _G.AutoSaber == false
                                 if v.Humanoid.Health <= 0 then
                                     replicated.Remotes.CommF_:InvokeServer("ProQuestProgress", "PlaceRelic")
